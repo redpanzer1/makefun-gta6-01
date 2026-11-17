@@ -1,79 +1,104 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Adegan screenshot deterministik ?shot=start|steal|chase|complete.
+// Aturan emas: window.__shotReady hanya true SETELAH satu frame render penuh.
+// Di mode shot: seed tetap per nama shot, posisi entitas hardcoded, fisika
+// dimatikan (dt = 0), dan Math.random tidak pernah dipakai.
 
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
+import { PLACES } from './config.js';
+import { seedFromName } from './random.js';
+import { makeCar } from './vehicles.js';
+import { SCREEN_TITLE, SCREEN_PLAY, SCREEN_COMPLETE } from './render.js';
 
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
-    }
-  }
-  return Infinity;
-}
-
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
-  }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
-    }
-  }
-  return best;
+export function shotSeed(name) {
+  return seedFromName(`kota-senja-shot-${name}`);
 }
 
 /**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
+ * Siapkan `game` untuk shot bernama `name` dan kembalikan layar yang digambar.
+ * Semua entitas diletakkan di posisi statis yang sudah dihitung — tidak ada
+ * simulasi berjalan di mode ini.
  */
-export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
+export function stageShot(name, game) {
+  const g = game;
+  g.shotMode = true;
+
+  if (name === 'start') {
+    // Title di atas Pasar Senja: kamera di tengah pasar, lalu lintas lewat.
+    g.player.x = 1060;
+    g.player.y = 920;
+    g.player.onFoot = true;
+    g.player.angle = 0;
+    g.camera = { x: 1060 - 640, y: 920 - 360 };
+    g.screen = SCREEN_TITLE;
+    return SCREEN_TITLE;
   }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
+
+  if (name === 'steal') {
+    // Bara jalan kaki persis di pintu pengemudi sedan Kancil; HUD + minimap penuh.
+    const car = makeCar('kancil', 1780, 900, Math.PI / 2, 'target');
+    g.cars.length = 0;
+    g.cars.push(car);
+    g.player.x = 1744;
+    g.player.y = 900;
+    g.player.angle = 0;
+    g.player.onFoot = true;
+    g.player.car = null;
+    g.player.money = 1250;
+    g.nearCarPrompt = 'Tekan E untuk mencuri sedan Kancil';
+    g.mission.index = 1;
+    g.mission.step = 0;
+    g.mission.objective = { x: PLACES.targetCar.x, y: PLACES.targetCar.y, r: 60, label: 'Curi sedan Kancil di Jalan Pantai' };
+    g.mission.dialog = { speaker: 'BU RATNA', text: 'Ambil sedan Kancil itu — tapi hati-hati polisi.', time: 99 };
+    g.screen = SCREEN_PLAY;
+    return SCREEN_PLAY;
   }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+
+  if (name === 'chase') {
+    // Bara mengemudi dikejar 2 mobil polisi, wanted 3, objektif kabur tampil.
+    g.cars.length = 0;
+    const playerCar = makeCar('kancil', 1300, 1120, 0, 'player');
+    playerCar.speed = 200;
+    g.cars.push(playerCar);
+    g.player.car = playerCar;
+    g.player.onFoot = false;
+    g.player.x = 1300;
+    g.player.y = 1120;
+    g.player.vx = 200;
+    g.player.vy = 0;
+    g.player.money = 2300;
+    const cop1 = makeCar('patroli', 1190, 1120, 0, 'police');
+    cop1.speed = 210;
+    const cop2 = makeCar('patroli', 1230, 1160, 0, 'police');
+    cop2.speed = 205;
+    g.police.length = 0;
+    g.police.push({ car: cop1, state: 'CHASE', role: 'chase', lastSeen: { x: 1300, y: 1120 }, lostTime: 0, route: [], routeIndex: 0, repathIn: 0, stuckTime: 0, arrestTimer: 0, sirenPhase: 0 });
+    g.police.push({ car: cop2, state: 'CHASE', role: 'cutoff', lastSeen: { x: 1300, y: 1120 }, lostTime: 0, route: [], routeIndex: 0, repathIn: 0, stuckTime: 0, arrestTimer: 0, sirenPhase: 1.5 });
+    g.cars.push(cop1, cop2);
+    g.wanted.level = 3;
+    g.mission.index = 1;
+    g.mission.step = 1;
+    g.mission.objective = { x: PLACES.plazaPantai.x, y: PLACES.plazaPantai.y, r: 140, label: 'Kabur dari Kepungan!' };
+    g.mission.dialog = null;
+    g.screen = SCREEN_PLAY;
+    return SCREEN_PLAY;
+  }
+
+  if (name === 'complete') {
+    // Layar Mission Complete di atas Pelabuhan Tua, semua entitas pause.
+    g.player.x = 340;
+    g.player.y = 500;
+    g.player.onFoot = true;
+    g.player.money = 6750;
+    g.camera = { x: 0, y: 140 };
+    g.mission.index = 3;
+    g.mission.dialog = null;
+    g.mission.banner = null;
+    g.mission.objective = { x: 0, y: 0, r: 0, label: '' };
+    g.nearCarPrompt = '';
+    g.completeText = 'Misi 3 selesai: "Bawa Dimas Pulang"';
+    g.completeReward = 'Hadiah misi: +$5,000 — Dimas selamat sampai Rumah Aman';
+    g.screen = SCREEN_COMPLETE;
+    return SCREEN_COMPLETE;
+  }
+
+  return stageShot('start', game);
 }

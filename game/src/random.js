@@ -1,5 +1,6 @@
-// A small seeded random number generator (mulberry32): the same seed gives the same game,
-// which is what makes the screenshot scenes repeatable.
+// Generator angka acak berseed (mulberry32): seed yang sama memberi dunia yang sama,
+// yang membuat adegan screenshot bisa diulang persis. Semua kode game memakai ini;
+// Math.random tidak dipakai di mana pun di game.
 
 export function createRandom(seed) {
   let a = seed | 0;
@@ -9,4 +10,14 @@ export function createRandom(seed) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/** Seed kecil yang stabil dari sebuah nama shot, supaya tiap shot punya dunianya sendiri. */
+export function seedFromName(name) {
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i += 1) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash | 0;
 }
