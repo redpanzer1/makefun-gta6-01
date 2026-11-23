@@ -1,6 +1,7 @@
 // Suara sintetis WebAudio — tanpa aset eksternal. Mesin (osilator sawtooth yang
 // nadanya ikut kecepatan), sirene dua nada, tembakan (noise burst), pickup,
 // dan loop musik senja sederhana (bass + pad). Semua diam bila muted (tombol M).
+// Fase 2 (24 Nov 2026): efek hit yang sama dipakai untuk tinju (tombol F).
 
 export function createAudio() {
   let ctx = null;

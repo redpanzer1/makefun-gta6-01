@@ -2,6 +2,8 @@
 // Jalankan dari root repo saat serve.ts sudah jalan di port 8080:
 //   node tools/take-shots.mjs
 // Menunggu window.__shotReady di tiap shot, simpan JPEG quality 85.
+// Fase 2 (24 Nov 2026): shot 1 Menara + Bebek, shot 2 Kampung Gang + Siul,
+// shot 3 wanted 5 + Bebek, shot 4 misi 6 "Jalan Pulang".
 import { chromium } from 'playwright';
 import { mkdirSync, statSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';

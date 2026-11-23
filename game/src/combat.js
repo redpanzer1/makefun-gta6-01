@@ -1,7 +1,7 @@
 // Combat: pistol pemain, peluru, dan preman rentenir di misi 3.
 // Pejalan kaki juga tinggal di sini: berjalan di trotoar, lari saat ada tembakan.
 
-import { PED_COUNT, PLAYER } from './config.js';
+import { PED_COUNT, PLAYER, WANTED } from './config.js';
 
 export function createBullet(x, y, angle, speed, from) {
   return { x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, from, life: 0.9 };
@@ -19,9 +19,37 @@ export function playerShoot(game, targetX, targetY) {
   game.shake = Math.max(game.shake, 5);
   // Tembakan terdengar polisi dalam radius 350.
   if (game.nearestPoliceDistance() < 350) {
-    game.wanted.level = Math.min(3, game.wanted.level + 1);
+    game.wanted.level = Math.min(WANTED.max, game.wanted.level + 1);
   }
   return true;
+}
+
+/** Tinju (tombol F, fase 2): pukulan jarak dekat ke preman terdekat. */
+export function playerPunch(game) {
+  const p = game.player;
+  if (!p.onFoot || p.punchCooldown > 0) return false;
+  p.punchCooldown = 0.5;
+  game.audio.hit();
+  game.shake = Math.max(game.shake, 3);
+  const fx = p.x + Math.cos(p.angle) * 26;
+  const fy = p.y + Math.sin(p.angle) * 26;
+  game.particles.push({ x: fx, y: fy, vx: 0, vy: -30, life: 0.35, color: '#ffd94a', size: 10 });
+  let hit = false;
+  for (const t of game.thugs) {
+    if (!t.alive) continue;
+    if (Math.hypot(t.x - p.x, t.y - p.y) < 38) {
+      t.health -= 25;
+      hit = true;
+      game.particles.push({ x: t.x, y: t.y - 10, vx: 0, vy: -20, life: 0.4, color: '#ff5a4e', size: 6 });
+      if (t.health <= 0) {
+        t.alive = false;
+        game.popups.push({ x: t.x, y: t.y - 24, text: 'PREMAN LUMPUH', life: 1.6, color: '#ffb347' });
+        game.audio.pickup();
+      }
+      break;
+    }
+  }
+  return hit;
 }
 
 export function updateBullets(game, dt) {
@@ -176,7 +204,7 @@ export function checkPedHits(game) {
       ped.x += Math.cos(car.angle) * 30;
       ped.y += Math.sin(car.angle) * 30;
       if (game.nearestPoliceDistance() < 320) {
-        game.wanted.level = Math.min(3, game.wanted.level + 1);
+        game.wanted.level = Math.min(WANTED.max, game.wanted.level + 1);
         game.popups.push({ x: ped.x, y: ped.y - 20, text: 'WARGA TERTABRAK!', life: 1.5, color: '#ff5a4e' });
       }
       game.shake = Math.max(game.shake, 6);

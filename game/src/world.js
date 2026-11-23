@@ -234,8 +234,10 @@ export function createCity(random) {
     return x < HARBOR_X || y > SEA_Y;
   }
 
-  /** Nama distrik untuk posisi — dipakai HUD dan dialog. */
+  /** Nama distrik untuk posisi — dipakai HUD dan dialog. 5 distrik fase 2. */
   function districtAt(x, y) {
+    if (x >= 1900 && y < 780) return 'Menara';
+    if (x < 700 && y >= 1180) return 'Kampung Gang';
     if (y >= 1580) return 'Jalan Pantai';
     if (x < 700) return 'Pelabuhan Tua';
     if (x >= 700 && x < 1900) return 'Pasar Senja';

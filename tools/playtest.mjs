@@ -3,6 +3,9 @@
 // mengikuti road graph). Jalankan saat serve.ts jalan di port 8080:
 //   node tools/playtest.mjs
 // Keluar 0 bila layar victory tercapai tanpa error JS; 1 bila gagal/timeout.
+// CATATAN fase 2 (24 Nov 2026): file ini usang — API game berubah
+// (window.__kotaSenja = game langsung; game.mission, bukan g.missions).
+// Playtest fase 2 yang berlaku: ../playtest-fase2.mjs (misi 1-6, semua lolos).
 import { chromium } from 'playwright';
 
 const BASE = process.env.GAME_URL || 'http://localhost:8080';

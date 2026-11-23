@@ -15,21 +15,23 @@ export const PLAYER = {
 };
 
 export const CARS = {
-  kancil: { name: 'Kancil', topSpeed: 235, accel: 260, brake: 420, reverse: 95, turn: 2.7, color: '#e8b23a', roof: '#f5d76e' },
-  aruna: { name: 'Aruna', topSpeed: 215, accel: 240, brake: 400, reverse: 90, turn: 2.6, color: '#2fa8a0', roof: '#7fd4cc' },
-  patroli: { name: 'Patroli', topSpeed: 260, accel: 300, brake: 460, reverse: 100, turn: 2.9, color: '#27408b', roof: '#dfe6f5' },
+  kancil: { name: 'Kancil', topSpeed: 235, accel: 260, brake: 420, reverse: 95, turn: 2.7, color: '#e8b23a', roof: '#f5d76e', size: 1, radius: 17 },
+  aruna: { name: 'Aruna', topSpeed: 215, accel: 240, brake: 400, reverse: 90, turn: 2.6, color: '#2fa8a0', roof: '#7fd4cc', size: 1, radius: 17 },
+  patroli: { name: 'Patroli', topSpeed: 260, accel: 300, brake: 460, reverse: 100, turn: 2.9, color: '#27408b', roof: '#dfe6f5', size: 1, radius: 17 },
+  bebek: { name: 'Bebek', topSpeed: 200, accel: 220, brake: 380, reverse: 85, turn: 2.4, color: '#7a9e4b', roof: '#a8c686', size: 1, radius: 17 },
+  siul: { name: 'Siul', topSpeed: 275, accel: 330, brake: 500, reverse: 60, turn: 3.4, color: '#c94f6d', roof: '#e88aa5', size: 0.62, radius: 11 },
 };
 
 export const TRAFFIC_COUNT = 9;
 export const PED_COUNT = 16;
 
-/** Aturan wanted mengikuti desain polisi: level 1-3, decay saat tak terlihat. */
+/** Aturan wanted fase 2: level 1-5, decay saat tak terlihat. */
 export const WANTED = {
-  max: 3,
-  decaySeconds: [0, 8, 12, 18],
-  policeCount: [0, 1, 2, 3],
-  vision: [0, 260, 320, 380],
-  policeSpeed: [0, 225, 245, 260],
+  max: 5,
+  decaySeconds: [0, 8, 12, 18, 24, 30],
+  policeCount: [0, 1, 2, 3, 4, 5],
+  vision: [0, 260, 320, 380, 420, 460],
+  policeSpeed: [0, 225, 245, 260, 275, 290],
   detectSteal: 180,
   detectShot: 350,
   spawnMinDistance: 300,
@@ -38,7 +40,10 @@ export const WANTED = {
 export const MISSIONS = [
   { id: 1, name: 'Paket Terakhir', reward: 500 },
   { id: 2, name: 'Jalanan Membara', reward: 1000 },
-  { id: 3, name: 'Bawa Dimas Pulang', reward: 5000 },
+  { id: 3, name: 'Diamankan di Klinik', reward: 1500 },
+  { id: 4, name: 'Tagihan Bu Ratna', reward: 2000 },
+  { id: 5, name: 'Jebakan di Pelabuhan', reward: 3000 },
+  { id: 6, name: 'Jalan Pulang', reward: 5000 },
 ];
 
 /** Titik-titik penting di peta (semua di jalan / area terbuka, bukan di dalam bangunan). */
@@ -51,6 +56,13 @@ export const PLACES = {
   rumahAman: { x: 2020, y: 1520, label: 'Rumah Aman' },
   kantorPolisi: { x: 1300, y: 1180, label: 'Kantor Polisi' },
   pasar: { x: 1060, y: 920, label: 'Pasar Senja' },
+  klinik: { x: 2260, y: 320, label: 'Klinik Senja' },
+  // Tiga titik tagihan misi 4 — semua di jalan / area terbuka.
+  tagihan: [
+    { x: 820, y: 720, label: 'Tagihan 1 — Warung Kopi' },
+    { x: 1780, y: 1120, label: 'Tagihan 2 — Bengkel Jaya' },
+    { x: 1300, y: 1520, label: 'Tagihan 3 — Pasar Ikan' },
+  ],
 };
 
 export const PALETTE = {

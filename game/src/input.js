@@ -7,6 +7,7 @@ export const ACTION_PAUSE = 2;
 export const ACTION_ENTER_CAR = 4;
 export const ACTION_MUTE = 8;
 export const ACTION_SHOOT = 16;
+export const ACTION_PUNCH = 32;
 
 const UP = new Set(['KeyW', 'ArrowUp']);
 const DOWN = new Set(['KeyS', 'ArrowDown']);
@@ -16,6 +17,7 @@ const CONFIRM = new Set(['Enter', 'Space']);
 const PAUSE = new Set(['KeyP', 'Escape']);
 const ENTER_CAR = new Set(['KeyE']);
 const MUTE = new Set(['KeyM']);
+const PUNCH = new Set(['KeyF']);
 
 export function createInput(canvas) {
   const held = new Set();
@@ -38,6 +40,8 @@ export function createInput(canvas) {
       if (!event.repeat) actions |= ACTION_ENTER_CAR;
     } else if (MUTE.has(event.code)) {
       if (!event.repeat) actions |= ACTION_MUTE;
+    } else if (PUNCH.has(event.code)) {
+      if (!event.repeat) actions |= ACTION_PUNCH;
     }
   });
   window.addEventListener('keyup', (event) => {

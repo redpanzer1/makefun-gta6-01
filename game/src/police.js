@@ -49,6 +49,44 @@ export function createPoliceUnit(city, random, player, level, role) {
   };
 }
 
+/** Polisi jalan kaki (fase 2): mengejar pemain yang jalan kaki saat wanted >= 2.
+ * Satu unit = { x, y, angle, arrestTimer }. Bergerak 150 px/dtk, menangkap
+ * bila menempel <= 26 px selama 1,2 dtk. Despawn saat pemain masuk mobil. */
+export function createFootPolice(x, y) {
+  return { x, y, angle: 0, arrestTimer: 0, walkPhase: 0 };
+}
+
+export function syncFootPolice(units, city, random, player, wanted) {
+  const want = !player.onFoot || wanted.level < 2 ? 0 : Math.min(2, wanted.level - 1);
+  while (units.length < want) {
+    // Spawn di node jalan acak (seeded, bukan Math.random — aman untuk staging).
+    const node = city.nodes[Math.floor(random() * city.nodes.length)];
+    units.push(createFootPolice(node.x, node.y));
+  }
+  while (units.length > want) units.pop();
+  return units;
+}
+
+export function updateFootPolice(units, city, player, dt) {
+  for (const u of units) {
+    const d = Math.hypot(player.x - u.x, player.y - u.y);
+    u.angle = Math.atan2(player.y - u.y, player.x - u.x);
+    u.walkPhase += dt * 8;
+    if (d > 26) {
+      u.x += Math.cos(u.angle) * 150 * dt;
+      u.y += Math.sin(u.angle) * 150 * dt;
+      const fixed = city.resolveCircle(u.x, u.y, 11);
+      u.x = fixed.x;
+      u.y = fixed.y;
+      u.arrestTimer = Math.max(0, u.arrestTimer - dt);
+    } else {
+      u.arrestTimer += dt;
+      if (u.arrestTimer >= 1.2) return 'arrested';
+    }
+  }
+  return null;
+}
+
 /** Pastikan jumlah polisi aktif sesuai wanted; kembalikan daftar unit aktif. */
 export function syncPolice(units, city, random, player, wanted) {
   const want = WANTED.policeCount[wanted.level] || 0;

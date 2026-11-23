@@ -1,4 +1,5 @@
 // Program entri gta6-01 "Kota Senja: Jalanan Panas" (Node 22, pustaka standar saja).
+// Fase 2 (24 Nov 2026): game yang diserahkan berisi 6 misi, 5 distrik, wanted 5 level.
 // Game-nya adalah folder game/ di sebelah file ini: file statis yang dimuat
 // browser secara offline (game/index.html + modul ES-nya, tanpa library dan
 // tanpa network request). Program ini menyerahkan game itu: menyalin game/ dan

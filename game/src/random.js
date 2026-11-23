@@ -1,6 +1,7 @@
 // Generator angka acak berseed (mulberry32): seed yang sama memberi dunia yang sama,
 // yang membuat adegan screenshot bisa diulang persis. Semua kode game memakai ini;
 // Math.random tidak dipakai di mana pun di game.
+// Fase 2 (24 Nov 2026): dipakai juga untuk spawn polisi jalan kaki & gelombang preman.
 
 export function createRandom(seed) {
   let a = seed | 0;

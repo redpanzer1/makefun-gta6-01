@@ -7,13 +7,13 @@
 import { STEP, PLAYER, PLACES, SAVE_KEY } from './config.js';
 import { createRandom, seedFromName } from './random.js';
 import { createCity } from './world.js';
-import { createInput, ACTION_CONFIRM, ACTION_PAUSE, ACTION_ENTER_CAR, ACTION_MUTE, ACTION_SHOOT } from './input.js';
-import { createWanted, syncPolice, updatePolice, clearWanted } from './police.js';
+import { createInput, ACTION_CONFIRM, ACTION_PAUSE, ACTION_ENTER_CAR, ACTION_MUTE, ACTION_SHOOT, ACTION_PUNCH } from './input.js';
+import { createWanted, syncPolice, updatePolice, clearWanted, syncFootPolice, updateFootPolice } from './police.js';
 import { createMissionState, startMission, updateMissions, restartMission, onCarStolen } from './missions.js';
 import { makeCar, driveCar, separateCars, updateTraffic, spawnCityCars, nearestCar } from './vehicles.js';
 import { createAudio } from './audio.js';
 import { createRenderer, SCREEN_TITLE, SCREEN_PLAY, SCREEN_PAUSED, SCREEN_HELP, SCREEN_OVER, SCREEN_VICTORY, SCREEN_COMPLETE } from './render.js';
-import { playerShoot, updateBullets, updateThugs, spawnPeds, updatePeds, checkPedHits, hurtPlayer } from './combat.js';
+import { playerShoot, playerPunch, updateBullets, updateThugs, spawnPeds, updatePeds, checkPedHits, hurtPlayer } from './combat.js';
 import { stageShot, shotSeed } from './shots.js';
 
 const MAX_FRAME = 0.25;
@@ -62,6 +62,7 @@ function createGame() {
     cars,
     peds: spawnPeds(city, random),
     police: [],
+    footPolice: [],
     wanted: createWanted(),
     mission: createMissionState(),
     thugs: [],
@@ -82,7 +83,7 @@ function createGame() {
     player: {
       x: PLACES.warung.x, y: PLACES.warung.y + 40, angle: -Math.PI / 2,
       vx: 0, vy: 0, onFoot: true, health: PLAYER.health,
-      money: PLAYER.startMoney, car: null, hasPistol: false, ammo: 0, shootCooldown: 0, invuln: 0,
+      money: PLAYER.startMoney, car: null, hasPistol: false, ammo: 0, shootCooldown: 0, punchCooldown: 0, invuln: 0,
     },
   };
   game.spawnThugs = () => {
@@ -96,7 +97,7 @@ function createGame() {
   game.save = () => {
     try {
       window.localStorage.setItem(SAVE_KEY, JSON.stringify({
-        mission: Math.min(game.mission.index, 2),
+        mission: Math.min(game.mission.index, 5),
         money: game.player.money,
         health: game.player.health,
       }));
@@ -136,12 +137,14 @@ function resetRun(fromSave) {
   game.player.health = PLAYER.health;
   game.player.hasPistol = false;
   game.player.ammo = 0;
+  game.player.punchCooldown = 0;
   game.player.money = save ? save.money : PLAYER.startMoney;
   game.bullets.length = 0;
   game.particles.length = 0;
   game.popups.length = 0;
   game.thugs.length = 0;
   game.police.length = 0;
+  game.footPolice.length = 0;
   game.dimas.freed = false;
   game.dimas.following = false;
   game.dimas.x = PLACES.gudang.x + 60;
@@ -149,7 +152,7 @@ function resetRun(fromSave) {
   clearWanted(game.wanted);
   game.overResume = null;
   game.mission = createMissionState();
-  startMission(game, save ? Math.min(save.mission, 2) : 0);
+  startMission(game, save ? Math.min(save.mission, 5) : 0);
   game.screen = SCREEN_PLAY;
   announce(`Bermain. Misi ${game.mission.index + 1}: ${game.mission.objective.label}.`);
 }
@@ -160,6 +163,7 @@ function arrestPlayer() {
   p.money -= lost;
   clearWanted(game.wanted);
   game.police.length = 0;
+  game.footPolice.length = 0;
   if (p.car) {
     p.car.role = p.car.role === 'target' ? 'target' : 'parked';
     p.car.speed = 0;
@@ -228,10 +232,12 @@ function stepPlay(input, dt) {
       const wy = mouse.y + game.camera.y;
       if (playerShoot(game, wx, wy)) game.events.shotFired = true;
     }
+    // Tinju (F): pukulan jarak dekat ke preman.
+    if (actions & ACTION_PUNCH) playerPunch(game);
   } else if (p.car) {
     const drive = input.drive();
     driveCar(p.car, drive.gas, drive.brake, drive.steer, input.handbrake(), dt);
-    const fixed = city.resolveCircle(p.car.x, p.car.y, 17);
+    const fixed = city.resolveCircle(p.car.x, p.car.y, p.car.radius || 17);
     if (fixed.x !== p.car.x || fixed.y !== p.car.y) {
       if (Math.abs(p.car.speed) > 120) {
         game.shake = Math.max(game.shake, 7);
@@ -266,9 +272,13 @@ function stepPlay(input, dt) {
   else if (policeResult === 'escaped') {
     game.mission.banner = { text: 'LOLOS!', sub: 'Polisi kehilangan jejak. WANTED HILANG · KOTA SENJA', time: 3 };
   }
+  // Polisi jalan kaki (fase 2): hanya saat pemain jalan kaki & wanted >= 2.
+  syncFootPolice(game.footPolice, city, random, p, game.wanted);
+  if (updateFootPolice(game.footPolice, city, p, dt) === 'arrested') arrestPlayer();
 
   // --- Combat & misi ---
   if (p.shootCooldown > 0) p.shootCooldown -= dt;
+  if (p.punchCooldown > 0) p.punchCooldown -= dt;
   if (p.invuln > 0) p.invuln -= dt;
   updateBullets(game, dt);
   updateThugs(game, dt);
@@ -279,7 +289,15 @@ function stepPlay(input, dt) {
   if (game.dimas.following) {
     const d = game.dimas;
     const dist = Math.hypot(p.x - d.x, p.y - d.y);
-    if (dist > 70) {
+    // Anti-frustrasi escort: bila Dimas tertinggal jauh (pemain naik mobil),
+    // ia "mengejar" dan muncul di dekat pemain — escort tidak pernah macet.
+    if (dist > 420) {
+      d.x = p.x - Math.cos(p.angle) * 40;
+      d.y = p.y - Math.sin(p.angle) * 40;
+      const fixed = city.resolveCircle(d.x, d.y, 11);
+      d.x = fixed.x;
+      d.y = fixed.y;
+    } else if (dist > 70) {
       const ang = Math.atan2(p.y - d.y, p.x - d.x);
       d.angle = ang;
       d.x += Math.cos(ang) * 135 * dt;
@@ -356,8 +374,8 @@ function runShot(name) {
   updateCamera();
   if (name === 'start' || name === 'complete') {
     // Kamera statis sesuai staging; jangan ikut pemain.
-    if (name === 'start') game.camera = { x: 420, y: 560 };
-    if (name === 'complete') game.camera = { x: 0, y: 140 };
+    if (name === 'start') game.camera = { x: 1460, y: 140 };
+    if (name === 'complete') game.camera = { x: 1280, y: 1160 };
   }
   let painted = 0;
   function paint() {

@@ -17,6 +17,8 @@ export function makeCar(kind, x, y, angle, role) {
     role, // 'player' | 'traffic' | 'police' | 'parked' | 'target'
     color: spec.color,
     roof: spec.roof,
+    size: spec.size || 1,
+    radius: spec.radius || 17,
     topSpeed: spec.topSpeed,
     accel: spec.accel,
     brake: spec.brake,
@@ -142,7 +144,7 @@ export function updateTraffic(car, city, cars, random, dt) {
 /** Spawn lalu lintas + mobil parkir di jalan-jalan kota. */
 export function spawnCityCars(city, random) {
   const cars = [];
-  const kinds = ['kancil', 'aruna', 'kancil', 'aruna'];
+  const kinds = ['kancil', 'aruna', 'bebek', 'siul', 'kancil', 'aruna'];
   for (let i = 0; i < TRAFFIC_COUNT; i += 1) {
     const node = city.nodes[Math.floor(random() * city.nodes.length)];
     const jitterX = (random() - 0.5) * 60;
@@ -155,6 +157,7 @@ export function spawnCityCars(city, random) {
     { kind: 'kancil', x: 760, y: 330 }, { kind: 'aruna', x: 1360, y: 730 },
     { kind: 'kancil', x: 1840, y: 1130 }, { kind: 'aruna', x: 2200, y: 1530 },
     { kind: 'kancil', x: 340, y: 1130 }, { kind: 'aruna', x: 820, y: 1530 },
+    { kind: 'bebek', x: 2260, y: 720 }, { kind: 'siul', x: 1300, y: 330 },
   ];
   for (const spot of parkedSpots) {
     const car = makeCar(spot.kind, spot.x, spot.y, Math.PI / 2, 'parked');

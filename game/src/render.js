@@ -3,7 +3,7 @@
 // bayangan panjang, papan toko Indonesia, dan HUD kontras tinggi supaya tetap
 // terbaca saat screenshot dikecilkan jadi contact sheet.
 
-import { VIEW, WORLD, PALETTE, FONT } from './config.js';
+import { VIEW, WORLD, PALETTE, FONT, MISSIONS } from './config.js';
 import { ROAD_X as RX, ROAD_Y as RY, ROAD_W, HARBOR_X, SEA_Y, SAND_Y } from './world.js';
 
 export const SCREEN_TITLE = 'title';
@@ -168,9 +168,11 @@ export function createRenderer(canvas) {
     const cam = game.camera;
     const sx = car.x - cam.x;
     const sy = car.y - cam.y;
+    const s = car.size || 1; // motor Siul digambar lebih kecil dari mobil
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(car.angle);
+    ctx.scale(s, s);
     // Bayangan.
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     roundRect(ctx, -20 + 3, -11 + 4, 42, 24, 7);
@@ -179,15 +181,39 @@ export function createRenderer(canvas) {
     ctx.fillStyle = car.color;
     roundRect(ctx, -21, -12, 42, 24, 7);
     ctx.fill();
-    ctx.fillStyle = car.roof;
-    roundRect(ctx, -8, -10, 16, 20, 4);
-    ctx.fill();
-    // Kaca depan & lampu.
-    ctx.fillStyle = '#bfe3ea';
-    ctx.fillRect(13, -9, 5, 18);
-    ctx.fillStyle = '#fff6c9';
-    ctx.fillRect(20, -10, 2, 5);
-    ctx.fillRect(20, 5, 2, 5);
+    if (car.kind === 'bebek') {
+      // Pikap: kabin di depan + bak terbuka di belakang.
+      ctx.fillStyle = car.roof;
+      roundRect(ctx, 4, -10, 14, 20, 4);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-19, -10, 20, 20);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(-17, -8, 16, 16);
+    } else if (car.kind === 'siul') {
+      // Motor: bodi ramping + stang + lampu depan menyala.
+      ctx.fillStyle = car.roof;
+      roundRect(ctx, -12, -5, 24, 10, 5);
+      ctx.fill();
+      ctx.fillStyle = '#fff6c9';
+      ctx.fillRect(20, -3, 3, 6);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-14, -7, 4, 3);
+      ctx.fillRect(-14, 4, 4, 3);
+    } else {
+      ctx.fillStyle = car.roof;
+      roundRect(ctx, -8, -10, 16, 20, 4);
+      ctx.fill();
+    }
+    // Kaca depan & lampu (motor sudah punya lampu sendiri di atas).
+    if (car.kind !== 'siul') {
+      ctx.fillStyle = '#bfe3ea';
+      ctx.fillRect(13, -9, 5, 18);
+      ctx.fillStyle = '#fff6c9';
+      ctx.fillRect(20, -10, 2, 5);
+      ctx.fillRect(20, 5, 2, 5);
+    }
     // Lampu sirene polisi berkedip merah-biru.
     if (car.kind === 'patroli') {
       const phase = Math.floor(game.time * 6) % 2 === 0;
@@ -238,13 +264,25 @@ export function createRenderer(canvas) {
     }
   }
 
+  function drawDistrictLabels(game) {
+    // Nama distrik besar di tanah — bukti visual zona Menara & Kampung Gang.
+    const cam = game.camera;
+    ctx.font = `bold 44px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(120, 200, 255, 0.16)';
+    ctx.fillText('MENARA', 2150 - cam.x, 420 - cam.y);
+    ctx.fillStyle = 'rgba(255, 120, 90, 0.14)';
+    ctx.fillText('KAMPUNG GANG', 380 - cam.x, 1420 - cam.y);
+  }
+
   function drawWorld(game) {
     drawGround(game);
     drawRoads(game);
+    drawDistrictLabels(game);
     drawBuildings(game);
     // Penanda misi (lingkaran berdenyut + tiang cahaya).
     const m = game.mission;
-    if (m.index < 3 && m.objective.r > 0) {
+    if (m.index < MISSIONS.length && m.objective.r > 0) {
       const cam = game.camera;
       const sx = m.objective.x - cam.x;
       const sy = m.objective.y - cam.y;
@@ -289,8 +327,34 @@ export function createRenderer(canvas) {
       ctx.fillStyle = '#fff';
       ctx.fillText('DIMAS', game.dimas.x - cam.x, game.dimas.y - cam.y - 20);
     }
+    // Polisi jalan kaki (fase 2): seragam biru + topi.
+    for (const u of game.footPolice || []) {
+      drawPerson(game, u.x, u.y, u.angle, '#4f7cff', false, u.walkPhase || 0);
+      const cam = game.camera;
+      ctx.fillStyle = '#1c2a55';
+      ctx.fillRect(u.x - cam.x - 6, u.y - cam.y - 10, 12, 5);
+    }
     const p = game.player;
-    if (p.onFoot) drawPerson(game, p.x, p.y, p.angle, '#ff7a2e', true, game.time * 8);
+    if (p.onFoot) {
+      drawPerson(game, p.x, p.y, p.angle, '#ff7a2e', true, game.time * 8);
+      // Efek tinju: bintang kuning di ujung pukulan.
+      if (p.punchCooldown > 0.3) {
+        const fx = p.x + Math.cos(p.angle) * 26 - game.camera.x;
+        const fy = p.y + Math.sin(p.angle) * 26 - game.camera.y;
+        ctx.fillStyle = '#ffd94a';
+        ctx.beginPath();
+        for (let i = 0; i < 8; i += 1) {
+          const a = (i / 8) * Math.PI * 2;
+          const r = i % 2 === 0 ? 12 : 5;
+          const px = fx + Math.cos(a) * r;
+          const py = fy + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
     // Peluru.
     ctx.fillStyle = '#ffe27a';
     for (const b of game.bullets) {
@@ -346,6 +410,11 @@ export function createRenderer(canvas) {
     ctx.fillRect(mx, my + SEA_Y * sy, mw, mh - SEA_Y * sy);
     ctx.fillStyle = '#c99a5b';
     ctx.fillRect(mx, my + SAND_Y * sy, mw, (SEA_Y - SAND_Y) * sy);
+    // Zona distrik fase 2: Menara (cyan) & Kampung Gang (maroon).
+    ctx.fillStyle = 'rgba(80, 160, 220, 0.35)';
+    ctx.fillRect(mx + 1900 * sx, my, (WORLD.width - 1900) * sx, 780 * sy);
+    ctx.fillStyle = 'rgba(160, 60, 50, 0.35)';
+    ctx.fillRect(mx, my + 1180 * sy, 700 * sx, (WORLD.height - 1180) * sy);
     // Jalan.
     ctx.fillStyle = '#8a7f72';
     for (const rx of RX) ctx.fillRect(mx + rx * sx - 2, my, 4, mh);
@@ -355,7 +424,7 @@ export function createRenderer(canvas) {
     for (const b of game.city.buildings) ctx.fillRect(mx + b.x * sx, my + b.y * sy, Math.max(1.5, b.w * sx), Math.max(1.5, b.h * sy));
     // Penanda misi.
     const m = game.mission;
-    if (m.index < 3 && m.objective.r > 0) {
+    if (m.index < MISSIONS.length && m.objective.r > 0) {
       ctx.fillStyle = '#ffd94a';
       ctx.beginPath();
       ctx.arc(mx + m.objective.x * sx, my + m.objective.y * sy, 5 + Math.sin(game.time * 4) * 1.5, 0, Math.PI * 2);
@@ -366,6 +435,12 @@ export function createRenderer(canvas) {
       ctx.fillStyle = '#4f7cff';
       ctx.beginPath();
       ctx.arc(mx + u.car.x * sx, my + u.car.y * sy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const u of game.footPolice || []) {
+      ctx.fillStyle = '#4f7cff';
+      ctx.beginPath();
+      ctx.arc(mx + u.x * sx, my + u.y * sy, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = '#ffd94a';
@@ -406,22 +481,22 @@ export function createRenderer(canvas) {
       ctx.fillStyle = '#ffe27a';
       ctx.fillText(`PISTOL  ${p.ammo} peluru`, 26, 96);
     }
-    // Bintang wanted kanan atas.
+    // Bintang wanted kanan atas (5 level, fase 2).
     ctx.fillStyle = 'rgba(12, 8, 18, 0.78)';
     roundRect(ctx, VIEW.width - 210, 12, 198, 52, 10);
     ctx.fill();
-    ctx.font = `bold 27px ${FONT}`;
+    ctx.font = `bold 24px ${FONT}`;
     ctx.textAlign = 'center';
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       ctx.fillStyle = i < game.wanted.level ? '#ffcf3a' : 'rgba(255,255,255,0.25)';
-      ctx.fillText('★', VIEW.width - 178 + i * 52, 43);
+      ctx.fillText('★', VIEW.width - 190 + i * 36, 42);
     }
     ctx.font = `bold 12px ${FONT}`;
     ctx.fillStyle = game.wanted.level > 0 ? '#ff8a7a' : PALETTE.muted;
     ctx.fillText(game.wanted.level > 0 ? 'DICARI POLISI' : 'AMAN', VIEW.width - 111, 60);
     // Objektif misi di tengah atas + panah arah.
     const m = game.mission;
-    if (m.index < 3) {
+    if (m.index < MISSIONS.length) {
       const label = `MISI ${m.index + 1}: ${m.objective.label}`;
       ctx.font = `bold 19px ${FONT}`;
       const w = ctx.measureText(label).width + 44;
@@ -471,7 +546,7 @@ export function createRenderer(canvas) {
     ctx.font = `bold 13px ${FONT}`;
     ctx.fillStyle = 'rgba(245, 234, 214, 0.75)';
     ctx.textAlign = 'left';
-    ctx.fillText('WASD gerak · E masuk/curi mobil · Klik tembak · P jeda · M suara', 26, VIEW.height - 46);
+    ctx.fillText('WASD gerak · E masuk/curi mobil · Klik tembak · F tinju · P jeda · M suara', 26, VIEW.height - 46);
     // Nama distrik.
     ctx.font = `bold 14px ${FONT}`;
     ctx.textAlign = 'right';
@@ -593,9 +668,9 @@ export function createRenderer(canvas) {
     ctx.fillText('H — Bantuan & kontrol', VIEW.width / 2, 384);
     ctx.font = `15px ${FONT}`;
     ctx.fillStyle = 'rgba(245, 234, 214, 0.8)';
-    ctx.fillText('3 misi · 3 distrik · wanted 3 level · kota fiktif, semua konten orisinal', VIEW.width / 2, 430);
-    ctx.fillText('WASD jalan / mengemudi · E curi mobil · Klik kiri tembak · P jeda · M suara', VIEW.width / 2, 458);
-    ctx.fillText('Pelabuhan Tua · Pasar Senja · Jalan Pantai', VIEW.width / 2, 500);
+    ctx.fillText('6 misi · 5 distrik · wanted 5 level · kota fiktif, semua konten orisinal', VIEW.width / 2, 430);
+    ctx.fillText('WASD jalan / mengemudi · E curi mobil · Klik kiri tembak · F tinju · P jeda · M suara', VIEW.width / 2, 458);
+    ctx.fillText('Pelabuhan Tua · Pasar Senja · Jalan Pantai · Menara · Kampung Gang', VIEW.width / 2, 500);
   }
 
   function draw(game, screen) {
@@ -619,6 +694,7 @@ export function createRenderer(canvas) {
         panel('BANTUAN — KOTA SENJA', [
           'WASD / panah: jalan & mengemudi · Space: rem tangan',
           'E: masuk / curi mobil · Klik kiri: tembak (bila ada pistol)',
+          'F: tinju jarak dekat (lawan preman)',
           'P: jeda · M: suara hidup/mati · Enter: konfirmasi',
           'Curi mobil di depan polisi = wanted naik. Sembunyi di gang,',
           'ganti mobil, atau tunggu sampai polisi kehilangan jejak.',
